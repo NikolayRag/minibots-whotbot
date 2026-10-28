@@ -1,4 +1,3 @@
-
 import type {
   ProcessLibrary, ProcessRecord, ProcessState, Report, StartInput,
   ProcessSummary, IntervalRecord
@@ -8,6 +7,7 @@ export interface StorageAdapter {
   start(input: StartInput): Promise<ProcessRecord>;
   stop(userId: string, at?: number): Promise<ProcessRecord | null>;
   report(userId: string, range?: { from?: number; to?: number }): Promise<Report>;
+  all(userId: string): Promise<ProcessSummary[]>;
 }
 
 export function createProcessLibrary(storage: StorageAdapter): ProcessLibrary {
@@ -29,6 +29,10 @@ export function createProcessLibrary(storage: StorageAdapter): ProcessLibrary {
       if (range?.to !== undefined && !Number.isFinite(range.to)) throw new Error("range.to must be a timestamp in milliseconds");
       if (range?.from !== undefined && range?.to !== undefined && range.from > range.to) throw new Error("range.from must not exceed range.to");
       return storage.report(userId, range);
+    },
+    all: (userId) => {
+      if (!userId.trim()) throw new Error("userId is required");
+      return storage.all(userId);
     }
   };
 }

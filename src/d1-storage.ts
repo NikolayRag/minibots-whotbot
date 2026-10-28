@@ -98,6 +98,43 @@ export class D1ProcessStorage implements StorageAdapter {
     return row ? mapProcess(row) : null;
   }
 
+  async all(userId: string): Promise<ProcessSummary[]> {
+    const now = Date.now();
+    const [processRows, intervalRows] = await Promise.all([
+      this.db.prepare("SELECT * FROM processes WHERE user_id = ? ORDER BY created_seq ASC")
+        .bind(userId).all<ProcessRow>(),
+      this.db.prepare(
+        "SELECT i.* FROM intervals i JOIN processes p ON p.id = i.process_id WHERE p.user_id = ? ORDER BY i.started_at ASC"
+      ).bind(userId).all<IntervalRow>()
+    ]);
+
+    const intervalsByProcess = new Map<string, IntervalRow[]>();
+    for (const interval of intervalRows.results ?? []) {
+      const list = intervalsByProcess.get(interval.process_id) ?? [];
+      list.push(interval);
+      intervalsByProcess.set(interval.process_id, list);
+    }
+
+    return (processRows.results ?? []).map(row => {
+      const process = mapProcess(row);
+      const intervals: IntervalRecord[] = (intervalsByProcess.get(row.id) ?? []).map(i => ({
+        id: i.id,
+        processId: i.process_id,
+        startedAt: i.started_at,
+        endedAt: i.ended_at
+      }));
+      const activeDurationMs = intervals.reduce(
+        (sum, i) => sum + Math.max(0, (i.endedAt ?? now) - i.startedAt), 0
+      );
+      return {
+        ...process,
+        activeDurationMs,
+        elapsedSinceStartMs: Math.max(0, now - process.startedAt),
+        intervals
+      };
+    });
+  }
+
   async report(userId: string, range: { from?: number; to?: number } = {}): Promise<Report> {
     const now = range.to ?? Date.now();
     const from = range.from ?? null;

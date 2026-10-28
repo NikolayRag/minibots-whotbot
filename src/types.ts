@@ -54,4 +54,5 @@ export interface ProcessLibrary {
   start(input: StartInput): Promise<ProcessRecord>;
   stop(userId: string, at?: number): Promise<ProcessRecord | null>;
   report(userId: string, range?: { from?: number; to?: number }): Promise<Report>;
+  all(userId: string): Promise<ProcessSummary[]>;
 }

@@ -1,6 +1,6 @@
 import { D1ProcessStorage } from "./d1-storage";
 import { createProcessLibrary } from "./library";
-import type { Report } from "./types";
+import type { ProcessSummary, Report } from "./types";
 
 interface Env {
   DB: D1Database;
@@ -72,6 +72,45 @@ async function telegram(env: Env, method: string, body: unknown): Promise<Telegr
 async function send(env: Env, chatId: number, text: string): Promise<void> {
   await telegram(env, "sendMessage", { chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true });
 }
+async function sendPlain(env: Env, chatId: number, text: string): Promise<void> {
+  const chars = Array.from(text);
+  const max = 3500;
+  for (let i = 0; i < chars.length; i += max) {
+    await telegram(env, "sendMessage", {
+      chat_id: chatId, text: chars.slice(i, i + max).join(""), disable_web_page_preview: true
+    });
+  }
+}
+function formatAll(processes: ProcessSummary[]): string {
+  if (!processes.length) return "Нет процессов.";
+  return processes.map(p =>
+    `${p.title} | ${p.state} | ${date(p.startedAt)} — ${date(p.endedAt)}`
+  ).join("\n");
+}
+function formatVeryAll(processes: ProcessSummary[]): string {
+  if (!processes.length) return "Нет процессов.";
+  return processes.map(p => {
+    const metadata = p.metadata && typeof p.metadata === "object"
+      ? p.metadata as Record<string, unknown>
+      : {};
+    const tags = metadata.tags ?? [];
+    const ranges = p.intervals.length
+      ? p.intervals.map(i => `  ${date(i.startedAt)} — ${date(i.endedAt)}`).join("\n")
+      : "  нет";
+    return [
+      `Процесс: ${p.title}`,
+      `ID: ${p.id}`,
+      `Состояние: ${p.state}`,
+      `Начало: ${date(p.startedAt)}`,
+      `Конец: ${date(p.endedAt)}`,
+      `Описание: ${p.description || "—"}`,
+      `Теги: ${Array.isArray(tags) ? tags.join(", ") : String(tags)}`,
+      `Метаданные: ${JSON.stringify(p.metadata, null, 2)}`,
+      "Диапазоны активного времени:",
+      ranges
+    ].join("\n");
+  }).join("\n\n--------------------\n\n");
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -109,6 +148,10 @@ export default {
         }
       } else if (/^\/what(?:@\w+)?(?:\s|$)/i.test(text)) {
         await send(env, chatId, formatReport(await lib.report(userId)));
+      } else if (/^\/all(?:@\w+)?(?:\s|$)/i.test(text)) {
+        await sendPlain(env, chatId, formatAll(await lib.all(userId)));
+      } else if (/^\/veryall(?:@\w+)?(?:\s|$)/i.test(text)) {
+        await sendPlain(env, chatId, formatVeryAll(await lib.all(userId)));
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Неизвестная ошибка";
