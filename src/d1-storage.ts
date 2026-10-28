@@ -111,7 +111,13 @@ export class D1ProcessStorage implements StorageAdapter {
           .bind(userId, now, now, from).all<IntervalRow>();
 
     const allProcesses = await this.db.prepare(
-      "SELECT * FROM processes WHERE user_id = ? ORDER BY created_seq DESC"
+      `SELECT * FROM processes
+       WHERE user_id = ?
+       ORDER BY COALESCE(ended_at, (
+         SELECT MAX(i.started_at)
+         FROM intervals i
+         WHERE i.process_id = processes.id
+       ), started_at) DESC, created_seq DESC`
     ).bind(userId).all<ProcessRow>();
 
     const intervalsByProcess = new Map<string, IntervalRow[]>();
