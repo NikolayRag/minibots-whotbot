@@ -5,7 +5,7 @@ compatibility_date = "2026-10-28"
 [[d1_databases]]
 binding = "DB"
 database_name = "process-tracker-db"
-database_id = "REPLACE_WITH_DATABASE_ID"
+database_id = "332e6b64-e3c2-422e-847c-b2592245f402"
 
 [vars]
 # Set APP_MODE to "telegram" for the Telegram adapter.
